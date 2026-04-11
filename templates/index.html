@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tumor Classification API</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: #f1f1f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            animation: fadeIn 1s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h1 {
+            font-weight: 600;
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #00ffcc;
+        }
+        p {
+            font-weight: 300;
+            margin-bottom: 30px;
+            color: #cccccc;
+        }
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        .btn {
+            border: 2px dashed #00ffcc;
+            color: #00ffcc;
+            background-color: transparent;
+            padding: 20px 20px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        .upload-btn-wrapper:hover .btn {
+            background-color: rgba(0, 255, 204, 0.1);
+        }
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            height: 100%;
+        }
+        #preview-container {
+            margin-top: 20px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        #preview {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+        #submit-btn {
+            background: linear-gradient(90deg, #00ffcc, #00cc99);
+            color: #0f2027;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: none;
+        }
+        #submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 204, 0.4);
+        }
+        .result-panel {
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        .result-title {
+            font-size: 14px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        .result-value {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .tumor {
+            color: #ff4d4d;
+        }
+        .normal {
+            color: #00ffcc;
+        }
+        .confidence {
+            font-size: 14px;
+            color: #bbb;
+            margin-top: 5px;
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #00ffcc;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Tumor Evaluator</h1>
+    <p>Upload an MRI scan to detect neuro-anomalies</p>
+
+    <div class="upload-btn-wrapper">
+        <button class="btn">Click or Drag & Drop Image</button>
+        <input type="file" id="imageInput" accept="image/jpeg, image/png, image/jpg" />
+    </div>
+
+    <div id="preview-container">
+        <img id="preview" alt="Image Preview">
+    </div>
+
+    <button id="submit-btn">Run Analysis</button>
+
+    <div class="loader" id="loader"></div>
+
+    <div class="result-panel" id="resultPanel">
+        <div class="result-title">Analysis Result</div>
+        <div class="result-value" id="resultValue">--</div>
+        <div class="confidence" id="confidenceValue">--</div>
+    </div>
+</div>
+
+<script>
+    const imageInput = document.getElementById('imageInput');
+    const previewContainer = document.getElementById('preview-container');
+    const preview = document.getElementById('preview');
+    const submitBtn = document.getElementById('submit-btn');
+    const loader = document.getElementById('loader');
+    const resultPanel = document.getElementById('resultPanel');
+    const resultValue = document.getElementById('resultValue');
+    const confidenceValue = document.getElementById('confidenceValue');
+    let selectedFile = null;
+
+    imageInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                previewContainer.style.display = 'block';
+                submitBtn.style.display = 'block';
+                
+                resultPanel.style.display = 'none';
+                resultValue.className = 'result-value';
+                resultValue.innerText = '--';
+                confidenceValue.innerText = '--';
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    submitBtn.addEventListener('click', async function() {
+        if (!selectedFile) return;
+
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+        loader.style.display = 'block';
+        resultPanel.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) throw new Error("Server error");
+            
+            const data = await response.json();
+            
+            resultPanel.style.display = 'block';
+            if (data.prediction === 'Tumor Detected') {
+                resultValue.innerText = 'Tumor Detected';
+                resultValue.classList.add('tumor');
+            } else {
+                resultValue.innerText = 'Normal (No Tumor)';
+                resultValue.classList.add('normal');
+            }
+            confidenceValue.innerText = `Confidence: ${(data.confidence * 100).toFixed(2)}%`;
+
+        } catch (error) {
+            alert("Failed to analyze the image.");
+            console.error(error);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            loader.style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
