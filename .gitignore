@@ -1,0 +1,8 @@
+mlflow.db
+backup/
+__pycache__/
+mlruns/
+*.jpg
+*.png
+*.jpeg
+*.keras
