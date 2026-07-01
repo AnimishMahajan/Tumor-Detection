@@ -1,4 +1,8 @@
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 import sys
+import subprocess
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
@@ -6,20 +10,6 @@ import tensorflow as tf
 from PIL import Image
 import numpy as np
 from io import BytesIO
-
-try:
-    if len(sys.argv) > 1 and sys.argv[1] == "retrain":
-        import subprocess
-        print("Starting data preprocessing...")
-        subprocess.run(["python", "src/data_preprocessor.py"], check=True)
-        print("Starting training...")
-        subprocess.run(["python", "src/train.py"], check=True)
-        print("Starting evaluation...")
-        subprocess.run(["python", "src/evaluate.py"], check=True)
-        print("Retraining pipeline complete.")
-except subprocess.CalledProcessError as e:
-    print(f"An error occurred during retraining: {e}")
-    sys.exit(1)
 
 ip = "localhost"
 port = 8000
@@ -57,4 +47,20 @@ async def predict(file: UploadFile = File(...)):
     return {"prediction": label, "confidence": confidence}
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host=ip, port=port, reload=True)
+    try:
+        length = len(sys.argv)
+        print(sys.argv)
+        if length > 2 and sys.argv[2] == "new":
+            print("Starting data preprocessing...")
+            subprocess.run(["python", "src/data_preprocessor.py"], check=True)
+        if length > 1 and sys.argv[1] == "retrain":               
+            print("Starting training...")
+            subprocess.run(["python", "src/train.py"], check=True)
+            print("Starting evaluation...")
+            subprocess.run(["python", "src/evaluation.py"], check=True)
+            print("Retraining pipeline complete.")
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred during retraining: {e}")
+        sys.exit(1)
+
+    uvicorn.run("app:app", host=ip, port=port, reload=False)
